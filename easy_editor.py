@@ -1,147 +1,148 @@
-
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QLabel, QTextEdit, QListWidget, QLineEdit, QVBoxLayout, QHBoxLayout, QInputDialog
-import json
+from PyQt5.QtWidgets import QApplication, QWidget, QListWidget, QPushButton, QLabel, QHBoxLayout, QVBoxLayout, QFileDialog
+import os
+from PIL import Image, ImageFilter
+from PIL import ImageOps
+from PyQt5.QtGui import QPixmap
+from PIL.ImageFilter import SHARPEN
 app = QApplication([])
 main = QWidget()
 main.resize(800, 600)
-main.setWindowTitle('Умные заметки')
-button1 = QPushButton('Создать заметку')
-button2 = QPushButton('Удалить заметку')
-button3 = QPushButton('Сохранить заметку')
-button4 = QPushButton('Добавить к заметке')
-button5 = QPushButton('Открепить от заметки')
-button6 = QPushButton('Искать заметки по тегу')
-text1 = QLabel('Список заметок')
-text2 = QLabel('Список тегов')
-low = QLineEdit()
-low.setPlaceholderText('Введите тег..')
-text = QTextEdit()
-list1 = QListWidget()
-list2 = QListWidget()
+main.setWindowTitle('Easy Editor')
 
-line = QVBoxLayout()
-line.addWidget(text)
+folder = QPushButton('Папка')
+list_elements = QListWidget()
+picture = QLabel('Картинка')
 
-line2 = QVBoxLayout()
-line2.addWidget(text1)
-line2.addWidget(list1)
-line3 = QHBoxLayout()
-line3.addWidget(button1)
-line3.addWidget(button2)
-line2.addLayout(line3)
-line2.addWidget(button3)
+button_left = QPushButton('Лево')
+button_right = QPushButton('Право')
+button_flip = QPushButton('Зеркало')
+button_sharpness = QPushButton('Резкость')
+button_bw = QPushButton('Ч/Б')
+button_mirror = QPushButton('Размыть')
+button_save = QPushButton('Сохранить')
+button_resetFilters = QPushButton('Сбросить фильтры')
 
-line2.addWidget(text2)
-line2.addWidget(list2)
-line2.addWidget(low)
-line4 = QHBoxLayout()
-line4.addWidget(button4)
-line4.addWidget(button5)
+v1 = QVBoxLayout()
+v1.addWidget(folder, alignment = Qt.AlignCenter)
+v1.addWidget(list_elements)
+
+h2 = QHBoxLayout()
+h2.addWidget(button_left)
+h2.addWidget(button_right)
+h2.addWidget(button_flip)
+h2.addWidget(button_sharpness)
+h2.addWidget(button_bw)
+h2.addWidget(button_mirror)
+h2.addWidget(button_save)
+h2.addWidget(button_resetFilters)
+
+v3 = QVBoxLayout()
+v3.addWidget(picture)
+v3.addLayout(h2)
+
+g = QHBoxLayout()
+g.addLayout(v1, 20)
+g.addLayout(v3, 70)
+main.setLayout(g)
 
 
-line2.addLayout(line4)
-line2.addWidget(button6)
-line5 = QHBoxLayout()
-line5.addLayout(line, stretch=2)
-line5.addLayout(line2, stretch=1)
-main.setLayout(line5)
-notes = {
-    'Название заметки' :
-    {
-        'текст' : 'Очень важный текст заметки',
-        'теги' : ['черновик', 'мысли']
-    }
-}
-with open('f.json', 'w', encoding='utf-8') as file:
-    json.dump(notes, file, ensure_ascii=True)
+workdir = ''
+def chooseWorkdir():
+    global workdir
+    workdir = QFileDialog.getExistingDirectory()
+def filter(files, extensions):
+    result = []
+    for filename in files:
+        for extension in extensions:
+            if filename.endswith(extension):
+                result.append(filename)
+    return result            
 
-def show_results():
-    name = list1.selectedItems()[0].text()
-    text.setText(notes[name]['текст'])
-    list2.clear()
-    list2.addItems(notes[name]['теги'])
+def showFilenameslist():
+    extension = ['.png', '.jpg', '.gif', '.jpeg', '.tiff', '.raw', '.psd', '.pdf', '.eps', '.ai', '.cdr', '.svg']
+    chooseWorkdir()
+    photo = filter(os.listdir(workdir), extension)
+    list_elements.clear()
+    for file in photo:
+        list_elements.addItem(file)
+folder.clicked.connect(showFilenameslist)
 
-def add_note():
-    note_name, ok = QInputDialog.getText(
-        main, 'Добавить заметку', 'Название заметки: '
-    )
-    if ok and note_name != '':
-        notes[note_name] = {'текст' : '', 'теги' : []}
-        list1.addItem(note_name)
-        list1.addItems(notes[note_name]['теги'])
-        with open('f.json', 'w', encoding='utf-8') as file:
-            json.dump(notes, file, ensure_ascii=True)
+class ImageProcessor():
+    def __init__(self):
+        self.image = None
+        self.filename = None
+        self.folder_name = 'workdir/'
+        self.original_image = None
+    def loadImage(self, filename):
+        self.filename = filename
+        image_path = os.path.join(workdir, filename)
+        self.image = Image.open(image_path)
+        self.original_image = self.image.copy()
+    def showImage(self, path):
+        pixmapimage = QPixmap(path)
+        label_width, label_height = picture.width(), picture.height()
+        scaled_pixmap = pixmapimage.scaled(label_width, label_height, Qt.KeepAspectRatio)
+        picture.setPixmap(scaled_pixmap)
+        picture.setVisible(True)
+    def do_bw(self):
+        self.image = self.image.convert('L')
+        self.saveImage()
+        image_path = os.path.join(workdir, self.folder_name, self.filename)
+        self.showImage(image_path)
+    def do_flip(self):
+        self.image = self.image.transpose(Image.FLIP_LEFT_RIGHT)
+        self.saveImage()
+        image_path = os.path.join(
+            workdir, self.folder_name, self.filename
+        )
+        self.showImage(image_path)
+    def do_sharpness(self):
+        self.image = self.image.filter(SHARPEN)
+        self.saveImage()
+        image_path = os.path.join(workdir, self.folder_name, self.filename)
+        self.showImage(image_path)
+    def do_left(self):
+        self.image = self.image.rotate(-90)
+        self.saveImage()
+        image_path = os.path.join(workdir, self.folder_name, self.filename)
+        self.showImage(image_path)
+    def do_right(self):
+        self.image = self.image.rotate(90)
+        self.saveImage()
+        image_path = os.path.join(workdir, self.folder_name, self.filename)
+        self.showImage(image_path)
+    def do_mirror(self):
+        self.image = self.image.filter(ImageFilter.BLUR)
+        self.saveImage()
+        image_path = os.path.join(workdir, self.folder_name, self.filename)
+        self.showImage(image_path)
+    def saveImage(self):
+        path = os.path.join(workdir, self.folder_name)
+        if not(os.path.exists(path) or os.path.isdir(path)):
+            os.mkdir(path)
+        image_path = os.path.join(path, self.filename)
+        self.image.save(image_path)
+    def resetImage(self):
+        self.image = self.original_image.copy()
+        self.showImage(os.path.join(workdir, self.filename))
+    
+workimage = ImageProcessor()
 
-def del_note(): 
-    if list1.selectedItems(): #проверяем заметку
-        key = list1.selectedItems()[0].text() #получаем название
-        del notes[key] #удаляем заметку
-        text.clear()
-        list1.clear()
-        list2.clear()
-        list1.addItems(notes)
-        with open('notes_data.json', 'w', encoding='utf-8') as file:
-           json.dump(notes, file, sort_keys=True, ensure_ascii=False) 
-
-def add_tags():
-    if list1.selectedItems():
-        key = list1.selectedItems()[0].text()
-        tag = low.text()
-        if not tag in notes[key]['теги']:
-            notes[key]['теги'].append(tag)
-            low.clear()
-        with open('f.json', 'w', encoding='utf-8')  as file:
-            json.dump(notes, file, sort_keys=True, ensure_ascii=False)
-    else:
-        print('Заметка для добавления тега не выбрана!')
-
-def save_note():
-    if list1.selectedItems():
-        key = list1.selectedItems()[0].text()
-        notes[key]['текст'] = text.toPlainText()
-        with open('f.json', 'w', encoding='utf-8') as file:
-            json.dump(notes, file, sort_keys=True, ensure_ascii=False)
-
-def del_tag():
-    if list1.selectedItems():
-        key = list1.selectedItems()[0].text() #Название заметки
-        tag = list2.selectedItems()[0].text()  #получаем название
-        notes[key]['теги'].remove(tag)
-        list2.clear()
-        list2.addItems(notes[key]['теги'])
-        with open('f.json', 'w', encoding='utf-8') as file:
-            json.dump(notes, file, sort_keys=True, ensure_ascii=False)
-
-def search_tag():
-    tag = low.text()
-    if button6.text() == 'Искать заметки по тегу' and tag:
-        notes_filtered = {}
-        for note in notes:
-            if tag in notes[note]['теги']:
-                notes_filtered[note]=notes[note]
-        button6.setText('Сбросить поиск')
-        list1.clear()
-        list2.clear()
-        list1.addItems(notes_filtered)
-    elif button6.text() == "Сбросить поиск":
-        text.clear()
-        list1.clear()
-        list2.clear()
-        list1.addItems(notes)
-        button6.setText('Искать заметки по тегу')
-    else:
-        pass
-
-with open('f.json', 'r', encoding='utf-8') as file:
-    notes = json.load(file)
-list1.addItems(notes)
-list1.itemClicked.connect(show_results)
-button1.clicked.connect(add_note)
-button2.clicked.connect(del_note)
-button3.clicked.connect(save_note)
-button4.clicked.connect(add_tags)
-button5.clicked.connect(del_tag)
-button6.clicked.connect(search_tag)
+def showChosenImage():
+    if list_elements.currentRow() >= 0:
+        filename = list_elements.currentItem().text()
+        workimage.loadImage(filename)
+        image_path = os.path.join(workdir, workimage.filename)
+        workimage.showImage(image_path)
+list_elements.currentRowChanged.connect(showChosenImage)
+button_bw.clicked.connect(workimage.do_bw)
+button_flip.clicked.connect(workimage.do_flip)
+button_sharpness.clicked.connect(workimage.do_sharpness)
+button_left.clicked.connect(workimage.do_left)
+button_right.clicked.connect(workimage.do_right)
+button_mirror.clicked.connect(workimage.do_mirror)
+button_save.clicked.connect(workimage.saveImage)
+button_resetFilters.clicked.connect(workimage.resetImage)
 main.show()
 app.exec_()
